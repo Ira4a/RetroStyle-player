@@ -1,1 +1,4 @@
-Messenger is a simple real-time chat application built with JavaScript, CSS, and HTML. It allows users to send and receive messages instantly, simulating a basic messenger interface. Designed for learning and demonstrating core frontend and communication concepts.
+1 - будет павер би где у тебя есть таблица в экселе где записывают ошибки на какой то определенной станции у статоров например 181 
+ 
+и тебе из этого надо сделать репрезентацию в павер би как граф
+ 
