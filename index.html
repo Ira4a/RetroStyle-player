@@ -96,3 +96,359 @@
   <script src="script.js"></script>
 </body>
 </html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retro Deck & Visualizer</title>
+  <style>
+    :root {
+      --bg-color: #0f0f14;
+      --deck-color: #1e1e24;
+      --border-metal: #3a3a42;
+      --led-color: #00ff66;
+      --led-glow: rgba(0, 255, 102, 0.25);
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: #e2e2e8;
+      font-family: 'Courier New', Courier, monospace;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    #visualizer-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      max-width: 900px;
+      width: 100%;
+      padding: 20px;
+      justify-content: center;
+    }
+
+    .editor-panel, .retro-deck {
+      background: var(--deck-color);
+      border: 4px solid var(--border-metal);
+      border-radius: 6px;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.8);
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    .editor-panel { width: 320px; }
+    .retro-deck { width: 420px; }
+
+    h3, h4 {
+      margin-top: 0;
+      letter-spacing: 1px;
+      color: #fff;
+    }
+    h4 { margin-bottom: 10px; font-size: 14px; }
+
+    .panel-divider {
+      border: 0;
+      border-top: 1px dashed #444;
+      margin: 15px 0;
+    }
+
+    .form-group { margin-bottom: 12px; }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      color: #aaa;
+      margin-bottom: 4px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 8px;
+      background: #111;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-family: monospace;
+    }
+
+    #add-track-btn {
+      width: 100%;
+      padding: 8px;
+      background: #333;
+      color: #fff;
+      border: 1px solid #555;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #add-track-btn:hover { background: #444; }
+
+    .playlist-box {
+      background: #111;
+      border: 1px solid #333;
+      max-height: 150px;
+      overflow-y: auto;
+      border-radius: 4px;
+    }
+
+    .playlist-item {
+      padding: 8px 12px;
+      font-size: 12px;
+      border-bottom: 1px solid #222;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .playlist-item:hover {
+      background: #222;
+      color: var(--led-color);
+    }
+    .playlist-item.active-track {
+      border-left: 3px solid var(--led-color);
+      color: var(--led-color);
+      background: rgba(255,255,255,0.02);
+    }
+
+    .deck-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #777;
+      margin-bottom: 12px;
+    }
+
+    .display-screen {
+      background: #050508;
+      border: 2px solid #15151a;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+    }
+
+    .track-title-display {
+      color: var(--led-color);
+      text-shadow: 0 0 8px var(--led-glow);
+      font-size: 15px;
+      margin-bottom: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--led-color);
+      text-shadow: 0 0 6px var(--led-glow);
+      font-weight: bold;
+    }
+
+    .vu-meter {
+      background: #1a1a24;
+      height: 6px;
+      margin-top: 12px;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .vu-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--led-color);
+      box-shadow: 0 0 8px var(--led-color);
+      transition: width 0.08s ease;
+    }
+
+    .cassette-well {
+      background: #0b0b0e;
+      height: 110px;
+      border: 2px solid #2d2d35;
+      border-radius: 4px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .window-cutout {
+      background: rgba(25, 25, 35, 0.8);
+      border: 2px solid #1a1a22;
+      width: 180px;
+      height: 60px;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+    }
+
+    .spindle {
+      width: 28px;
+      height: 28px;
+      background: #333;
+      border-radius: 50%;
+      border: 5px dashed #111;
+      box-sizing: border-box;
+    }
+
+    @keyframes tapeSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .spinning { animation: tapeSpin 2.5s linear infinite; }
+
+    .transport-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .deck-btn {
+      flex: 1;
+      background: linear-gradient(to bottom, #4a4a52, #2d2d33);
+      border: 1px solid #1c1c22;
+      border-bottom: 4px solid #111;
+      color: #fff;
+      padding: 10px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+
+    .deck-btn:active {
+      border-bottom-width: 1px;
+      transform: translateY(3px);
+      background: #222;
+    }
+
+    .wave-selector-container label {
+      font-size: 11px;
+      color: #888;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .wave-options { display: flex; gap: 8px; }
+
+    .wave-opt-btn {
+      flex: 1;
+      background: #15151a;
+      border: 1px solid #333;
+      color: #aaa;
+      padding: 6px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: monospace;
+    }
+
+    .wave-opt-btn.active {
+      background: var(--led-color);
+      color: #000;
+      font-weight: bold;
+      border-color: var(--led-color);
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="visualizer-canvas"></canvas>
+
+  <div class="container">
+    <!-- LEFT: EDITOR -->
+    <div class="editor-panel">
+      <h3>🎛️ Deck Configuration</h3>
+      <div class="form-group">
+        <label for="edit-color">LED Accent Color</label>
+        <input type="color" id="edit-color" value="#00ff66">
+      </div>
+
+      <hr class="panel-divider">
+
+      <h4>🎵 Add to Playlist</h4>
+      <div class="form-group">
+        <label for="track-title-input">Track Title</label>
+        <input type="text" id="track-title-input" placeholder="e.g., Cyberpunk Grid">
+      </div>
+      <div class="form-group">
+        <label for="track-url-input">Audio URL (.mp3)</label>
+        <input type="text" id="track-url-input" placeholder="https://domain.com/track.mp3">
+      </div>
+      <button id="add-track-btn">Add Track</button>
+
+      <hr class="panel-divider">
+
+      <h4>📋 Current Playlist</h4>
+      <div id="playlist-container" class="playlist-box"></div>
+    </div>
+
+    <!-- RIGHT: CASSETTE DECK -->
+    <div class="retro-deck" id="player-deck">
+      <div class="deck-header">
+        <div class="brand">STEREO CASSETTE DECK</div>
+        <div class="model">Model JS-404 AV</div>
+      </div>
+
+      <div class="display-screen">
+        <div class="track-title-display" id="display-title">SELECT A TRACK OR PRESS PLAY</div>
+        <div class="status-row">
+          <div class="status-indicator" id="status-text">STOP</div>
+          <div class="time-counter" id="display-time">00:00</div>
+        </div>
+        <div class="vu-meter">
+          <div class="vu-bar" id="vu-left"></div>
+        </div>
+      </div>
+
+      <div class="cassette-well">
+        <div class="window-cutout">
+          <div class="spindle spindle-left" id="spindle-l"></div>
+          <div class="spindle spindle-right" id="spindle-r"></div>
+        </div>
+      </div>
+
+      <!-- Setting crossOrigin to anonymous allows us to analyze external files if they support CORS -->
+      <audio id="main-audio" crossOrigin="anonymous"></audio>
+
+      <div class="transport-buttons">
+        <button class="deck-btn" id="btn-play">▶ PLAY</button>
+        <button class="deck-btn" id="btn-pause">❚❚ PAUSE</button>
+        <button class="deck-btn" id="btn-stop">■ STOP</button>
+      </div>
+
+      <div class="wave-selector-container">
+        <label>Visualizer Mode:</label>
+        <div class="wave-options">
+          <button class="wave-opt-btn active" data-style="bars">Retro Bars</button>
+          <button class="wave-opt-btn" data-style="sine">Sine Wave</button>
+          <button class="wave-opt-btn" data-style="pulse">Cyber Pulse</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+
+  </script>
+</body>
+</html>
