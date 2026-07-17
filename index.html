@@ -3,53 +3,66 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Retro Deck & Editor</title>
+  <title>Retro Deck with Audio Visualizer Canvas</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+  <!-- Audio Responsive Background Canvas -->
+  <canvas id="visualizer-canvas"></canvas>
+
   <div class="container">
-    <!-- EDIT PANEL -->
+    
+    <!-- LEFT: SYSTEM CONFIGURATION & PLAYLIST EDITOR -->
     <div class="editor-panel">
-      <h3>Deck Configuration</h3>
-      <div class="form-group">
-        <label for="edit-title">Tape / Track Title</label>
-        <input type="text" id="edit-title" value="SYNTHWAVE '84">
-      </div>
+      <h3>🎛️ Deck Configuration</h3>
       
       <div class="form-group">
         <label for="edit-color">LED Accent Color</label>
         <input type="color" id="edit-color" value="#00ff66">
       </div>
 
+      <hr class="panel-divider">
+
+      <!-- Add Track Section -->
+      <h4>🎵 Add to Playlist</h4>
       <div class="form-group">
-        <label for="edit-source">Audio URL (.mp3)</label>
-        <input type="text" id="edit-source" value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">
+        <label for="track-title-input">Track Title</label>
+        <input type="text" id="track-title-input" placeholder="e.g., Cyberpunk Grid">
       </div>
-      <button id="apply-changes-btn">Update Tape Deck</button>
+      <div class="form-group">
+        <label for="track-url-input">Audio URL (.mp3)</label>
+        <input type="text" id="track-url-input" placeholder="https://domain.com/track.mp3">
+      </div>
+      <button id="add-track-btn">Add Track</button>
+
+      <hr class="panel-divider">
+
+      <!-- Clickable Playlist Track Container -->
+      <h4>📋 Current Playlist</h4>
+      <div id="playlist-container" class="playlist-box"></div>
     </div>
 
-    <!-- RETRO PLAYER -->
+    <!-- RIGHT: THE HARDWARE CASSETTE DECK -->
     <div class="retro-deck" id="player-deck">
       <div class="deck-header">
         <div class="brand">STEREO CASSETTE DECK</div>
-        <div class="model">Model JS-404</div>
+        <div class="model">Model JS-404 AV</div>
       </div>
 
-      <!-- LED Display Screen -->
+      <!-- LED Digital Display Screen -->
       <div class="display-screen">
-        <div class="track-title-display" id="display-title">SYNTHWAVE '84</div>
+        <div class="track-title-display" id="display-title">SELECT A TRACK OR PRESS PLAY</div>
         <div class="status-row">
           <div class="status-indicator" id="status-text">STOP</div>
           <div class="time-counter" id="display-time">00:00</div>
         </div>
-        <!-- Mock VU Meter Bar -->
         <div class="vu-meter">
           <div class="vu-bar" id="vu-left"></div>
         </div>
       </div>
 
-      <!-- Cassette Well Visualizer -->
+      <!-- Tape Mechanism Visual Elements -->
       <div class="cassette-well">
         <div class="window-cutout">
           <div class="spindle spindle-left" id="spindle-l"></div>
@@ -57,21 +70,29 @@
         </div>
       </div>
 
-      <!-- Audio Element -->
-      <audio id="main-audio" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
+      <!-- Hidden Audio Processing Node Source -->
+      <audio id="main-audio" crossOrigin="anonymous"></audio>
 
-      <!-- Physical Transport Buttons -->
+      <!-- Mechanical Deck Keys -->
       <div class="transport-buttons">
-        <button class="deck-btn" id="btn-rew" title="Rewind">◀◀</button>
-        <button class="deck-btn" id="btn-play" title="Play">▶</button>
-        <button class="deck-btn" id="btn-pause" title="Pause">❚❚</button>
-        <button class="deck-btn" id="btn-stop" title="Stop">■</button>
-        <button class="deck-btn" id="btn-ff" title="Fast Forward">▶▶</button>
+        <button class="deck-btn" id="btn-play" title="Play">▶ PLAY</button>
+        <button class="deck-btn" id="btn-pause" title="Pause">❚❚ PAUSE</button>
+        <button class="deck-btn" id="btn-stop" title="Stop">■ STOP</button>
       </div>
+
+      <!-- Waveform Style Target Controller Selector -->
+      <div class="wave-selector-container">
+        <label>Visualizer Mode:</label>
+        <div class="wave-options">
+          <button class="wave-opt-btn active" data-style="bars">Retro Bars</button>
+          <button class="wave-opt-btn" data-style="sine">Sine Wave</button>
+          <button class="wave-opt-btn" data-style="pulse">Cyber Pulse</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
-  <script src="https://w.soundcloud.com/player/api.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
