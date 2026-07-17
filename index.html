@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retro Deck & Editor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="container">
+    <!-- EDIT PANEL -->
+    <div class="editor-panel">
+      <h3>🎛️ Deck Configuration</h3>
+      <div class="form-group">
+        <label for="edit-title">Tape / Track Title</label>
+        <input type="text" id="edit-title" value="SYNTHWAVE '84">
+      </div>
+      
+      <div class="form-group">
+        <label for="edit-color">LED Accent Color</label>
+        <input type="color" id="edit-color" value="#00ff66">
+      </div>
+
+      <div class="form-group">
+        <label for="edit-source">Audio URL (.mp3)</label>
+        <input type="text" id="edit-source" value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">
+      </div>
+      <button id="apply-changes-btn">Update Tape Deck</button>
+    </div>
+
+    <!-- RETRO PLAYER -->
+    <div class="retro-deck" id="player-deck">
+      <div class="deck-header">
+        <div class="brand">STEREO CASSETTE DECK</div>
+        <div class="model">Model JS-404</div>
+      </div>
+
+      <!-- LED Display Screen -->
+      <div class="display-screen">
+        <div class="track-title-display" id="display-title">SYNTHWAVE '84</div>
+        <div class="status-row">
+          <div class="status-indicator" id="status-text">STOP</div>
+          <div class="time-counter" id="display-time">00:00</div>
+        </div>
+        <!-- Mock VU Meter Bar -->
+        <div class="vu-meter">
+          <div class="vu-bar" id="vu-left"></div>
+        </div>
+      </div>
+
+      <!-- Cassette Well Visualizer -->
+      <div class="cassette-well">
+        <div class="window-cutout">
+          <div class="spindle spindle-left" id="spindle-l"></div>
+          <div class="spindle spindle-right" id="spindle-r"></div>
+        </div>
+      </div>
+
+      <!-- Audio Element -->
+      <audio id="main-audio" src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3"></audio>
+
+      <!-- Physical Transport Buttons -->
+      <div class="transport-buttons">
+        <button class="deck-btn" id="btn-rew" title="Rewind">◀◀</button>
+        <button class="deck-btn" id="btn-play" title="Play">▶</button>
+        <button class="deck-btn" id="btn-pause" title="Pause">❚❚</button>
+        <button class="deck-btn" id="btn-stop" title="Stop">■</button>
+        <button class="deck-btn" id="btn-ff" title="Fast Forward">▶▶</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
