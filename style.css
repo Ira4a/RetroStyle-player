@@ -1,5 +1,4 @@
-:root {
-      --bg-color: #0b0b10;
+   --bg-color: #0b0b10;
       --deck-color: #1a1a22;
       --border-metal: #33333d;
       --led-color: #ff007f;
@@ -319,6 +318,862 @@
     }
 
     /* Waveform Selector UI */
+    .wave-selector-container label {
+      font-size: 11px;
+      color: #777;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .wave-options {
+      display: flex;
+      gap: 6px;
+    }
+
+    .wave-opt-btn {
+      flex: 1;
+      background: #121218;
+      border: 1px solid #2c2c36;
+      color: #999;
+      padding: 7px;
+      font-size: 10px;
+      cursor: pointer;
+      font-family: monospace;
+      border-radius: 3px;
+      transition: all 0.2s;
+    }
+
+    .wave-opt-btn.active {
+      background: var(--led-color);
+      color: #000;
+      font-weight: bold;
+      border-color: var(--led-color);
+      box-shadow: 0 0 8px var(--led-glow);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Background Canvas Visualizer -->
+  <canvas id="visualizer-canvas"></canvas>
+
+  <div class="container">
+    
+    <!-- LEFT PANEL: CONFIGURATION & PLAYLIST EDITOR -->
+    <div class="editor-panel">
+      <h3>🎛️ Deck Configuration</h3>
+      
+      <div class="form-group">
+        <label for="edit-color">LED Accent Color</label>
+        <input type="color" id="edit-color" value="#ff007f">
+      </div>
+
+      <hr class="panel-divider">
+
+      <!-- Upload Local MP3 or Add URL -->
+      <h4>🎵 Add Music</h4>
+      
+      <div class="form-group">
+        <label>Upload MP3 File from Computer (100% Works)</label>
+        <label for="local-file-input" class="file-upload-btn">📁 Choose MP3 File...</label>
+        <input type="file" id="local-file-input" accept="audio/*" style="display: none;">
+      </div>
+
+      <div class="form-group" style="margin-top: 10px;">
+        <label for="track-title-input">Or Enter Track Name</label>
+        <input type="text" id="track-title-input" placeholder="e.g., Cyberpunk City">
+      </div>
+      
+      <div class="form-group">
+        <label for="track-url-input">Direct Audio URL (.mp3)</label>
+        <input type="text" id="track-url-input" placeholder="https://domain.com/music.mp3">
+      </div>
+      
+      <button class="file-upload-btn" id="add-url-btn" style="background: #252530;">+ Add URL Track</button>
+      <button class="btn-secondary" id="add-synth-btn">🎹 Add Procedural 80s Synth Track</button>
+
+      <hr class="panel-divider">
+
+      <!-- Playlist Box -->
+      <h4>📋 Current Playlist</h4>
+      <div id="playlist-container" class="playlist-box"></div>
+    </div>
+
+    <!-- RIGHT PANEL: RETRO CASSETTE PLAYER DECK -->
+    <div class="retro-deck" id="player-deck">
+      <div class="deck-header">
+        <div>STEREO CASSETTE DECK</div>
+        <div>MODEL JS-404 AV</div>
+      </div>
+
+      <!-- Digital Display -->
+      <div class="display-screen">
+        <div class="track-title-display" id="display-title">SELECT A TRACK</div>
+        <div class="status-row">
+          <div id="status-text">STOP</div>
+          <div id="display-time">00:00</div>
+        </div>
+        <div class="vu-meter">
+          <div class="vu-bar" id="vu-left"></div>
+        </div>
+      </div>
+
+      <!-- Tape Cassette Window -->
+      <div class="cassette-well">
+        <div class="window-cutout">
+          <div class="spindle spindle-left" id="spindle-l"></div>
+          <div class="spindle spindle-right" id="spindle-r"></div>
+        </div>
+      </div>
+
+      <!-- Hidden Audio Element -->
+      <audio id="main-audio"></audio>
+
+      <!-- Physical Control Buttons -->
+      <div class="transport-buttons">
+        <button class="deck-btn" id="btn-play">▶ PLAY</button>
+        <button class="deck-btn" id="btn-pause">❚❚ PAUSE</button>
+        <button class="deck-btn" id="btn-stop">■ STOP</button>
+      </div>
+
+      <!-- Visualizer Mode Switches -->
+      <div class="wave-selector-container">
+        <label>Visualizer Wave Mode:</label>
+        <div class="wave-options">
+          <button class="wave-opt-btn active" data-style="bars">Retro Bars</button>
+          <button class="wave-opt-btn" data-style="sine">Sine Wave</button>
+          <button class="wave-opt-btn" data-style="pulse">Cyber Pulse</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       2. JAVASCRIPT LOGIC (Copy this block into script.js if using separate files)
+       ========================================================================== */
+
+    // Playlist State (Starts with built-in procedural synth tracks guarantee zero CORS issues!)
+    let playlist = [
+      { title: "SYNTHWAVE 84 (BUILT-IN SYNTH)", url: "synth:wave84", type: "SYNTH" },
+      { title: "NEON DRIFT (BUILT-IN SYNTH)", url: "synth:neondrift", type: "SYNTH" }
+    ];
+    let currentTrackIndex = 0;
+    let visualizerStyle = 'bars';
+
+    // Web Audio API Pipeline
+    let audioCtx = null;
+    let analyser = null;
+    let dataArray = [];
+    let mediaSource = null;
+    let synthInterval = null;
+    let currentSynthOsc = null;
+    let synthStartTime = 0;
+    let synthElapsedTime = 0;
+
+    const audio = document.getElementById('main-audio');
+    const btnPlay = document.getElementById('btn-play');
+    const btnPause = document.getElementById('btn-pause');
+    const btnStop = document.getElementById('btn-stop');
+    const spindleL = document.getElementById('spindle-l');
+    const spindleR = document.getElementById('spindle-r');
+    const displayTime = document.getElementById('display-time');
+    const statusText = document.getElementById('status-text');
+    const displayTitle = document.getElementById('display-title');
+    const vuLeft = document.getElementById('vu-left');
+    const editColor = document.getElementById('edit-color');
+    const playerDeck = document.getElementById('player-deck');
+    const playlistContainer = document.getElementById('playlist-container');
+    const localFileInput = document.getElementById('local-file-input');
+    const trackTitleInput = document.getElementById('track-title-input');
+    const trackUrlInput = document.getElementById('track-url-input');
+    const addUrlBtn = document.getElementById('add-url-btn');
+    const addSynthBtn = document.getElementById('add-synth-btn');
+
+    // Visualizer Canvas Setup
+    const canvas = document.getElementById('visualizer-canvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function initAudioContext() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+      // Connect standard audio tag to Web Audio pipeline
+      try {
+        mediaSource = audioCtx.createMediaElementSource(audio);
+        mediaSource.connect(analyser);
+        analyser.connect(audioCtx.destination);
+      } catch(e) {
+        console.warn("MediaElementSource attached");
+      }
+    }
+
+    // Canvas Animation Loop
+    function renderVisuals() {
+      requestAnimationFrame(renderVisuals);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const isPlaying = (playlist[currentTrackIndex]?.type === 'SYNTH' && currentSynthOsc) || (!audio.paused);
+      const accentColor = getComputedStyle(playerDeck).getPropertyValue('--led-color').trim();
+
+      if (analyser && isPlaying) {
+        if (visualizerStyle === 'sine') {
+          analyser.getByteTimeDomainData(dataArray);
+        } else {
+          analyser.getByteFrequencyData(dataArray);
+        }
+      } else {
+        if (dataArray.length > 0) dataArray.fill(visualizerStyle === 'sine' ? 128 : 0);
+      }
+
+      if (!dataArray.length) return;
+
+      // 1. Retro Frequency Bars
+      if (visualizerStyle === 'bars') {
+        const barWidth = (canvas.width / dataArray.length) * 1.6;
+        let x = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          let barHeight = (dataArray[i] / 255) * (canvas.height * 0.42);
+          ctx.fillStyle = accentColor;
+          ctx.globalAlpha = 0.15;
+          ctx.fillRect(x, canvas.height - barHeight, barWidth - 4, barHeight);
+          x += barWidth;
+        }
+      } 
+      // 2. Sine Wave Oscilloscope
+      else if (visualizerStyle === 'sine') {
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = accentColor;
+        ctx.globalAlpha = 0.3;
+        ctx.beginPath();
+        const sliceWidth = canvas.width / dataArray.length;
+        let x = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = v * (canvas.height / 2);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+          x += sliceWidth;
+        }
+        ctx.lineTo(canvas.width, canvas.height / 2);
+        ctx.stroke();
+      } 
+      // 3. Cyber Pulse Radial Energy
+      else if (visualizerStyle === 'pulse') {
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+        const pulseRadius = (avg / 255) * (canvas.width * 0.22) + 90;
+        ctx.beginPath();
+        ctx.arc(canvas.width / 2, canvas.height / 2, pulseRadius, 0, 2 * Math.PI);
+        ctx.strokeStyle = accentColor;
+        ctx.globalAlpha = 0.12;
+        ctx.lineWidth = 20;
+        ctx.stroke();
+      }
+    }
+    renderVisuals();
+
+    // Procedural Synth Sound Generator (100% Offline & CORS Safe)
+    function playSynthTrack(preset) {
+      stopSynthTrack();
+      initAudioContext();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      const masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.15;
+      masterGain.connect(analyser);
+      analyser.connect(audioCtx.destination);
+
+      const notes = preset === 'synth:wave84' 
+        ? [110, 130.81, 146.83, 164.81, 196, 220, 246.94]
+        : [130.81, 155.56, 174.61, 196, 233.08, 261.63];
+
+      let noteIdx = 0;
+      synthStartTime = Date.now() - (synthElapsedTime * 1000);
+
+      synthInterval = setInterval(() => {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const noteGain = audioCtx.createGain();
+        
+        osc.type = preset === 'synth:wave84' ? 'sawtooth' : 'square';
+        osc.frequency.setValueAtTime(notes[noteIdx % notes.length], audioCtx.currentTime);
+        noteIdx++;
+
+        noteGain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        noteGain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+
+        osc.connect(noteGain);
+        noteGain.connect(masterGain);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.4);
+      }, 250);
+
+      currentSynthOsc = masterGain;
+    }
+
+    function stopSynthTrack() {
+      if (synthInterval) {
+        clearInterval(synthInterval);
+        synthInterval = null;
+      }
+      if (currentSynthOsc) {
+        currentSynthOsc.disconnect();
+        currentSynthOsc = null;
+      }
+    }
+
+    // Hardware UI State Updates
+    function updateDeckUX(state) {
+      statusText.innerText = state.toUpperCase();
+      if (state === 'play') {
+        spindleL.classList.add('spinning');
+        spindleR.classList.add('spinning');
+      } else {
+        spindleL.classList.remove('spinning');
+        spindleR.classList.remove('spinning');
+        if (state === 'stop') {
+          displayTime.innerText = "00:00";
+          vuLeft.style.width = "0%";
+          synthElapsedTime = 0;
+        }
+      }
+    }
+
+    // Time & VU Meter updates
+    setInterval(() => {
+      const track = playlist[currentTrackIndex];
+      if (!track) return;
+
+      if (track.type === 'SYNTH' && currentSynthOsc) {
+        synthElapsedTime = (Date.now() - synthStartTime) / 1000;
+        displayTime.innerText = formatTime(synthElapsedTime);
+
+        // VU Bar jump logic
+        if (analyser) {
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < 15; i++) sum += dataArray[i];
+          const level = (sum / 15) / 255 * 100 * 1.2;
+          vuLeft.style.width = `${Math.min(level, 100)}%`;
+        }
+      } else if (track.type !== 'SYNTH' && !audio.paused) {
+        displayTime.innerText = formatTime(audio.currentTime);
+
+        if (analyser) {
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < 15; i++) sum += dataArray[i];
+          const level = (sum / 15) / 255 * 100 * 1.2;
+          vuLeft.style.width = `${Math.min(level, 100)}%`;
+        }
+      }
+    }, 100);
+
+    function formatTime(seconds) {
+      if (isNaN(seconds)) return "00:00";
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Controls Action Listeners
+    btnPlay.addEventListener('click', () => {
+      initAudioContext();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+      const track = playlist[currentTrackIndex];
+      if (!track) return;
+
+      if (track.type === 'SYNTH') {
+        audio.pause();
+        playSynthTrack(track.url);
+        updateDeckUX('play');
+      } else {
+        stopSynthTrack();
+        audio.play().then(() => {
+          updateDeckUX('play');
+        }).catch(err => {
+          console.warn("Playback error or CORS block:", err);
+          updateDeckUX('play');
+        });
+      }
+    });
+
+    btnPause.addEventListener('click', () => {
+      const track = playlist[currentTrackIndex];
+      if (track && track.type === 'SYNTH') {
+        stopSynthTrack();
+      } else {
+        audio.pause();
+      }
+      updateDeckUX('pause');
+    });
+
+    btnStop.addEventListener('click', () => {
+      stopSynthTrack();
+      audio.pause();
+      audio.currentTime = 0;
+      updateDeckUX('stop');
+    });
+
+    audio.addEventListener('ended', () => {
+      updateDeckUX('stop');
+    });
+
+    // Playlist Manager
+    function renderPlaylist() {
+      playlistContainer.innerHTML = '';
+      playlist.forEach((track, index) => {
+        const div = document.createElement('div');
+        div.className = `playlist-item ${index === currentTrackIndex ? 'active-track' : ''}`;
+        div.innerHTML = `
+          <span>${index + 1}. ${track.title}</span>
+          <span class="track-type-badge">${track.type}</span>
+        `;
+        
+        div.addEventListener('click', () => {
+          loadTrack(index);
+          btnPlay.click();
+        });
+        
+        playlistContainer.appendChild(div);
+      });
+    }
+
+    function loadTrack(index) {
+      if (index < 0 || index >= playlist.length) return;
+      currentTrackIndex = index;
+      const track = playlist[index];
+
+      stopSynthTrack();
+      audio.pause();
+      audio.currentTime = 0;
+      synthElapsedTime = 0;
+
+      if (track.type !== 'SYNTH') {
+        audio.src = track.url;
+      }
+      
+      displayTitle.innerText = track.title.toUpperCase();
+      renderPlaylist();
+    }
+
+    // Local MP3 File Handler
+    localFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const objectUrl = URL.createObjectURL(file);
+        const title = file.name.replace(/\.[^/.]+$/, "");
+        
+        playlist.push({
+          title: title.toUpperCase(),
+          url: objectUrl,
+          type: "LOCAL FILE"
+        });
+        
+        renderPlaylist();
+        loadTrack(playlist.length - 1);
+        btnPlay.click();
+      }
+    });
+
+    // Custom URL Input Handler
+    addUrlBtn.addEventListener('click', () => {
+      const title = trackTitleInput.value.trim() || "EXTERNAL TRACK";
+      let url = trackUrlInput.value.trim();
+
+      if (url) {
+        if (url.startsWith('http://')) url = url.replace('http://', 'https://');
+        
+        playlist.push({
+          title: title.toUpperCase(),
+          url: url,
+          type: "URL"
+        });
+        
+        trackTitleInput.value = '';
+        trackUrlInput.value = '';
+        renderPlaylist();
+        loadTrack(playlist.length - 1);
+      }
+    });
+
+    // Add Procedural Synth Preset Handler
+    addSynthBtn.addEventListener('click', () => {
+      const synthCount = playlist.filter(t => t.type === 'SYNTH').length + 1;
+      playlist.push({
+        title: `RETRO SYNTH WAVE #${synthCount}`,
+        url: synthCount % 2 === 0 ? 'synth:neondrift' : 'synth:wave84',
+        type: "SYNTH"
+      });
+      renderPlaylist();
+    });
+
+    // Accent Color Picker Handler
+    editColor.addEventListener('input', () => {
+      playerDeck.style.setProperty('--led-color', editColor.value);
+    });
+
+    // Wave Mode Selectors
+    document.querySelectorAll('.wave-opt-btn').forEach(btn => {
+      buttonEventListener(btn);
+    });
+
+    function buttonEventListener(button) {
+      button.addEventListener('click', (e) => {
+        document.querySelectorAll('.wave-opt-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        visualizerStyle = e.target.getAttribute('data-style');
+      });
+    }
+
+    // Boot Up
+    renderPlaylist();
+    loadTrack(0);
+  </script>
+</body>
+</html> ---- на данный момент не работает плеер в гитхабе пейдж, я пишу еод для гита
+
+Проблема в том, что GitHub Pages требует HTTPS, а ваш код пытается использовать createMediaElementSource для аудио, что может конфликтовать с автовоспроизведением. Также есть проблемы с CORS и безопасностью. Вот исправленный код:
+html
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retro Cassette Deck & Visualizer</title>
+  
+  <style>
+    /* ==========================================================================
+       1. CSS STYLES
+       ========================================================================== */
+    :root {
+      --bg-color: #0b0b10;
+      --deck-color: #1a1a22;
+      --border-metal: #33333d;
+      --led-color: #ff007f;
+      --led-glow: rgba(255, 0, 127, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: #e2e2e8;
+      font-family: 'Courier New', Courier, monospace;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    #visualizer-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    .container {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 25px;
+      max-width: 880px;
+      width: 100%;
+      padding: 20px;
+      justify-content: center;
+    }
+
+    .editor-panel, .retro-deck {
+      background: var(--deck-color);
+      border: 3px solid var(--border-metal);
+      border-radius: 8px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+      padding: 22px;
+    }
+
+    .editor-panel {
+      width: 340px;
+    }
+
+    .retro-deck {
+      width: 440px;
+    }
+
+    h3, h4 {
+      margin-top: 0;
+      letter-spacing: 1px;
+      color: #fff;
+    }
+
+    h4 {
+      margin-bottom: 10px;
+      font-size: 13px;
+      color: #ccc;
+    }
+
+    .panel-divider {
+      border: 0;
+      border-top: 1px dashed #3a3a45;
+      margin: 16px 0;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .form-group input[type="text"],
+    .form-group input[type="file"] {
+      width: 100%;
+      padding: 8px;
+      background: #0f0f15;
+      border: 1px solid #333;
+      color: #fff;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    .form-group input[type="color"] {
+      width: 100%;
+      height: 36px;
+      background: #0f0f15;
+      border: 1px solid #333;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .file-upload-btn {
+      display: block;
+      width: 100%;
+      padding: 9px;
+      background: #282834;
+      color: #fff;
+      border: 1px solid #444;
+      text-align: center;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: bold;
+      transition: background 0.2s;
+    }
+
+    .file-upload-btn:hover {
+      background: #363646;
+    }
+
+    .btn-secondary {
+      width: 100%;
+      padding: 8px;
+      background: #252530;
+      color: #bbb;
+      border: 1px solid #3a3a45;
+      cursor: pointer;
+      font-size: 11px;
+      border-radius: 4px;
+      margin-top: 6px;
+    }
+
+    .btn-secondary:hover {
+      background: #30303f;
+      color: #fff;
+    }
+
+    .playlist-box {
+      background: #0e0e14;
+      border: 1px solid #2a2a35;
+      max-height: 160px;
+      overflow-y: auto;
+      border-radius: 4px;
+    }
+
+    .playlist-item {
+      padding: 8px 12px;
+      font-size: 11px;
+      border-bottom: 1px solid #1a1a24;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.15s;
+    }
+
+    .playlist-item:hover {
+      background: #181822;
+      color: var(--led-color);
+    }
+
+    .playlist-item.active-track {
+      border-left: 3px solid var(--led-color);
+      color: var(--led-color);
+      background: rgba(255, 255, 255, 0.03);
+      font-weight: bold;
+    }
+
+    .track-type-badge {
+      font-size: 9px;
+      padding: 2px 5px;
+      background: #222;
+      color: #888;
+      border-radius: 3px;
+    }
+
+    .deck-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: #666;
+      margin-bottom: 12px;
+      letter-spacing: 1px;
+    }
+
+    .display-screen {
+      background: #050508;
+      border: 2px solid #14141c;
+      padding: 14px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.9);
+    }
+
+    .track-title-display {
+      color: var(--led-color);
+      text-shadow: 0 0 8px var(--led-glow);
+      font-size: 14px;
+      margin-bottom: 8px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      height: 18px;
+    }
+
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      color: var(--led-color);
+      text-shadow: 0 0 6px var(--led-glow);
+      font-weight: bold;
+      font-size: 13px;
+    }
+
+    .vu-meter {
+      background: #14141e;
+      height: 6px;
+      margin-top: 10px;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .vu-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--led-color);
+      box-shadow: 0 0 8px var(--led-color);
+      transition: width 0.08s ease;
+    }
+
+    .cassette-well {
+      background: #0a0a0d;
+      height: 100px;
+      border: 2px solid #282832;
+      border-radius: 4px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-bottom: 18px;
+      box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+    }
+
+    .window-cutout {
+      background: rgba(20, 20, 30, 0.9);
+      border: 2px solid #161620;
+      width: 170px;
+      height: 55px;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      position: relative;
+    }
+
+    .spindle {
+      width: 26px;
+      height: 26px;
+      background: #333;
+      border-radius: 50%;
+      border: 4px dashed #111;
+      box-sizing: border-box;
+    }
+
+    @keyframes tapeSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .spinning {
+      animation: tapeSpin 2s linear infinite;
+    }
+
+    .transport-buttons {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .deck-btn {
+      flex: 1;
+      background: linear-gradient(to bottom, #44444d, #25252b);
+      border: 1px solid #18181f;
+      border-bottom: 4px solid #0d0d12;
+      color: #fff;
+      padding: 10px;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      border-radius: 3px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+      transition: transform 0.05s, border-bottom 0.05s;
+    }
+
+    .deck-btn:active {
+      border-bottom-width: 1px;
+      transform: translateY(3px);
+      background: #1e1e24;
+    }
+
     .wave-selector-container label {
       font-size: 11px;
       color: #777;
