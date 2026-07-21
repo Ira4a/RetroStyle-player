@@ -8,54 +8,71 @@
 </head>
 <body>
 
+  <!-- Background Canvas Visualizer -->
   <canvas id="visualizer-canvas"></canvas>
 
   <div class="container">
-    <!-- LEFT: EDITOR -->
+    
+    <!-- LEFT PANEL: CONFIGURATION & PLAYLIST EDITOR -->
     <div class="editor-panel">
-      <h3>Deck Configuration</h3>
+      <h3>🎛️ Deck Configuration</h3>
+      
       <div class="form-group">
         <label for="edit-color">LED Accent Color</label>
-        <input type="color" id="edit-color" value="#00ff66">
+        <input type="color" id="edit-color" value="#ff007f">
       </div>
 
       <hr class="panel-divider">
 
-      <h4>Add to Playlist</h4>
+      <!-- Upload Local MP3 or Add URL -->
+      <h4>🎵 Add Music</h4>
+      
       <div class="form-group">
-        <label for="track-title-input">Track Title</label>
-        <input type="text" id="track-title-input" placeholder="e.g., Cyberpunk Grid">
+        <label>Upload MP3 File from Computer (100% Works)</label>
+        <label for="local-file-input" class="file-upload-btn">📁 Choose MP3 File...</label>
+        <input type="file" id="local-file-input" accept="audio/*" style="display: none;">
       </div>
+
+      <div class="form-group" style="margin-top: 10px;">
+        <label for="track-title-input">Or Enter Track Name</label>
+        <input type="text" id="track-title-input" placeholder="e.g., Cyberpunk City">
+      </div>
+      
       <div class="form-group">
-        <label for="track-url-input">Audio URL (.mp3)</label>
-        <input type="text" id="track-url-input" placeholder="https://domain.com/track.mp3">
+        <label for="track-url-input">Direct Audio URL (.mp3)</label>
+        <input type="text" id="track-url-input" placeholder="https://domain.com/music.mp3">
       </div>
-      <button id="add-track-btn">Add Track</button>
+      
+      <button class="file-upload-btn" id="add-url-btn" style="background: #252530;">+ Add URL Track</button>
+      <button class="btn-secondary" id="add-synth-btn">🎹 Add Procedural 80s Synth Track</button>
 
       <hr class="panel-divider">
 
-      <h4>Current Playlist</h4>
+      <!-- Playlist Box -->
+      <h4>📋 Current Playlist</h4>
       <div id="playlist-container" class="playlist-box"></div>
     </div>
 
-    <!-- RIGHT: CASSETTE DECK -->
+    <!-- RIGHT PANEL: RETRO CASSETTE PLAYER DECK -->
     <div class="retro-deck" id="player-deck">
       <div class="deck-header">
-        <div class="brand">STEREO CASSETTE DECK</div>
-        <div class="model">Model JS-404 AV</div>
+        <div>STEREO CASSETTE DECK</div>
+        <div>MODEL JS-404 AV</div>
       </div>
 
+      <!-- Digital Display -->
       <div class="display-screen">
-        <div class="track-title-display" id="display-title">SELECT A TRACK OR PRESS PLAY</div>
+        <div class="track-title-display" id="display-title">SELECT A TRACK</div>
         <div class="status-row">
-          <div class="status-indicator" id="status-text">STOP</div>
-          <div class="time-counter" id="display-time">00:00</div>
+          <div id="status-text">STOP</div>
+          <div id="display-time">00:00</div>
         </div>
         <div class="vu-meter">
           <div class="vu-bar" id="vu-left"></div>
         </div>
       </div>
 
+      <!-- Tape Cassette Window -->
       <div class="cassette-well">
         <div class="window-cutout">
           <div class="spindle spindle-left" id="spindle-l"></div>
@@ -63,16 +80,19 @@
         </div>
       </div>
 
-      <audio id="main-audio" crossOrigin="anonymous"></audio>
+      <!-- Hidden Audio Element -->
+      <audio id="main-audio"></audio>
 
+      <!-- Physical Control Buttons -->
       <div class="transport-buttons">
         <button class="deck-btn" id="btn-play">▶ PLAY</button>
         <button class="deck-btn" id="btn-pause">❚❚ PAUSE</button>
         <button class="deck-btn" id="btn-stop">■ STOP</button>
       </div>
 
+      <!-- Visualizer Mode Switches -->
       <div class="wave-selector-container">
-        <label>Visualizer Mode:</label>
+        <label>Visualizer Wave Mode:</label>
         <div class="wave-options">
           <button class="wave-opt-btn active" data-style="bars">Retro Bars</button>
           <button class="wave-opt-btn" data-style="sine">Sine Wave</button>
