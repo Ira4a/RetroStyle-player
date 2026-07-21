@@ -1,20 +1,16 @@
- /* ==========================================================================
-       2. JAVASCRIPT LOGIC (Copy this block into script.js if using separate files)
-       ========================================================================== */
-
-    // Playlist State (Starts with built-in procedural synth tracks guarantee zero CORS issues!)
-    let playlist = [
+   let playlist = [
       { title: "SYNTHWAVE 84 (BUILT-IN SYNTH)", url: "synth:wave84", type: "SYNTH" },
       { title: "NEON DRIFT (BUILT-IN SYNTH)", url: "synth:neondrift", type: "SYNTH" }
     ];
     let currentTrackIndex = 0;
     let visualizerStyle = 'bars';
 
-    // Web Audio API Pipeline
+    // Web Audio API
     let audioCtx = null;
     let analyser = null;
     let dataArray = [];
     let mediaSource = null;
+    let mediaSourceConnected = false;
     let synthInterval = null;
     let currentSynthOsc = null;
     let synthStartTime = 0;
@@ -39,7 +35,7 @@
     const addUrlBtn = document.getElementById('add-url-btn');
     const addSynthBtn = document.getElementById('add-synth-btn');
 
-    // Visualizer Canvas Setup
+    // Visualizer Canvas
     const canvas = document.getElementById('visualizer-canvas');
     const ctx = canvas.getContext('2d');
 
@@ -52,18 +48,33 @@
 
     function initAudioContext() {
       if (audioCtx) return;
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 256;
-      dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-      // Connect standard audio tag to Web Audio pipeline
+      
       try {
-        mediaSource = audioCtx.createMediaElementSource(audio);
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        dataArray = new Uint8Array(analyser.frequencyBinCount);
+        
+        // Don't connect media source yet - do it on first play
+        console.log('AudioContext initialized successfully');
+      } catch(e) {
+        console.error('Failed to create AudioContext:', e);
+      }
+    }
+
+    function connectMediaSource() {
+      if (!audioCtx || mediaSourceConnected) return;
+      
+      try {
+        if (!mediaSource) {
+          mediaSource = audioCtx.createMediaElementSource(audio);
+        }
         mediaSource.connect(analyser);
         analyser.connect(audioCtx.destination);
+        mediaSourceConnected = true;
+        console.log('Media source connected to analyser');
       } catch(e) {
-        console.warn("MediaElementSource attached");
+        console.warn('Could not connect media source:', e);
       }
     }
 
@@ -72,8 +83,13 @@
       requestAnimationFrame(renderVisuals);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const isPlaying = (playlist[currentTrackIndex]?.type === 'SYNTH' && currentSynthOsc) || (!audio.paused);
-      const accentColor = getComputedStyle(playerDeck).getPropertyValue('--led-color').trim();
+      const currentTrack = playlist[currentTrackIndex];
+      const isSynthPlaying = currentTrack && currentTrack.type === 'SYNTH' && currentSynthOsc;
+      const isAudioPlaying = !audio.paused && !audio.ended && audio.duration > 0;
+      const isPlaying = isSynthPlaying || isAudioPlaying;
+      
+      const computedStyle = getComputedStyle(playerDeck);
+      const accentColor = computedStyle.getPropertyValue('--led-color').trim() || '#ff007f';
 
       if (analyser && isPlaying) {
         if (visualizerStyle === 'sine') {
@@ -82,12 +98,14 @@
           analyser.getByteFrequencyData(dataArray);
         }
       } else {
-        if (dataArray.length > 0) dataArray.fill(visualizerStyle === 'sine' ? 128 : 0);
+        // Fill with neutral data when not playing
+        if (dataArray.length > 0) {
+          dataArray.fill(visualizerStyle === 'sine' ? 128 : 0);
+        }
       }
 
-      if (!dataArray.length) return;
+      if (!dataArray.length || dataArray.length === 0) return;
 
-      // 1. Retro Frequency Bars
       if (visualizerStyle === 'bars') {
         const barWidth = (canvas.width / dataArray.length) * 1.6;
         let x = 0;
@@ -99,7 +117,6 @@
           x += barWidth;
         }
       } 
-      // 2. Sine Wave Oscilloscope
       else if (visualizerStyle === 'sine') {
         ctx.lineWidth = 3;
         ctx.strokeStyle = accentColor;
@@ -117,7 +134,6 @@
         ctx.lineTo(canvas.width, canvas.height / 2);
         ctx.stroke();
       } 
-      // 3. Cyber Pulse Radial Energy
       else if (visualizerStyle === 'pulse') {
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
@@ -130,14 +146,21 @@
         ctx.lineWidth = 20;
         ctx.stroke();
       }
+      
+      ctx.globalAlpha = 1;
     }
     renderVisuals();
 
-    // Procedural Synth Sound Generator (100% Offline & CORS Safe)
+    // Procedural Synth Sound Generator
     function playSynthTrack(preset) {
       stopSynthTrack();
       initAudioContext();
-      if (audioCtx.state === 'suspended') audioCtx.resume();
+      
+      if (!audioCtx) return;
+      
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
 
       const masterGain = audioCtx.createGain();
       masterGain.gain.value = 0.15;
@@ -153,6 +176,7 @@
 
       synthInterval = setInterval(() => {
         if (!audioCtx) return;
+        
         const osc = audioCtx.createOscillator();
         const noteGain = audioCtx.createGain();
         
@@ -179,7 +203,9 @@
         synthInterval = null;
       }
       if (currentSynthOsc) {
-        currentSynthOsc.disconnect();
+        try {
+          currentSynthOsc.disconnect();
+        } catch(e) {}
         currentSynthOsc = null;
       }
     }
@@ -210,21 +236,20 @@
         synthElapsedTime = (Date.now() - synthStartTime) / 1000;
         displayTime.innerText = formatTime(synthElapsedTime);
 
-        // VU Bar jump logic
         if (analyser) {
           analyser.getByteFrequencyData(dataArray);
           let sum = 0;
-          for (let i = 0; i < 15; i++) sum += dataArray[i];
+          for (let i = 0; i < Math.min(15, dataArray.length); i++) sum += dataArray[i];
           const level = (sum / 15) / 255 * 100 * 1.2;
           vuLeft.style.width = `${Math.min(level, 100)}%`;
         }
-      } else if (track.type !== 'SYNTH' && !audio.paused) {
+      } else if (track.type !== 'SYNTH' && !audio.paused && audio.duration > 0) {
         displayTime.innerText = formatTime(audio.currentTime);
 
         if (analyser) {
           analyser.getByteFrequencyData(dataArray);
           let sum = 0;
-          for (let i = 0; i < 15; i++) sum += dataArray[i];
+          for (let i = 0; i < Math.min(15, dataArray.length); i++) sum += dataArray[i];
           const level = (sum / 15) / 255 * 100 * 1.2;
           vuLeft.style.width = `${Math.min(level, 100)}%`;
         }
@@ -232,7 +257,7 @@
     }, 100);
 
     function formatTime(seconds) {
-      if (isNaN(seconds)) return "00:00";
+      if (isNaN(seconds) || !isFinite(seconds)) return "00:00";
       const mins = Math.floor(seconds / 60);
       const secs = Math.floor(seconds % 60);
       return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
@@ -241,8 +266,21 @@
     // Controls Action Listeners
     btnPlay.addEventListener('click', () => {
       initAudioContext();
-      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      
+      if (!audioCtx) return;
+      
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().then(() => {
+          executePlay();
+        }).catch(err => {
+          console.error('Could not resume AudioContext:', err);
+        });
+      } else {
+        executePlay();
+      }
+    });
 
+    function executePlay() {
       const track = playlist[currentTrackIndex];
       if (!track) return;
 
@@ -252,14 +290,20 @@
         updateDeckUX('play');
       } else {
         stopSynthTrack();
+        
+        // Connect media source if not already done
+        connectMediaSource();
+        
         audio.play().then(() => {
           updateDeckUX('play');
+          console.log('Audio playback started');
         }).catch(err => {
-          console.warn("Playback error or CORS block:", err);
+          console.warn("Playback error:", err);
+          // Still update UI to show attempt
           updateDeckUX('play');
         });
       }
-    });
+    }
 
     btnPause.addEventListener('click', () => {
       const track = playlist[currentTrackIndex];
@@ -282,6 +326,11 @@
       updateDeckUX('stop');
     });
 
+    audio.addEventListener('error', (e) => {
+      console.error('Audio loading error:', e);
+      statusText.innerText = 'ERROR';
+    });
+
     // Playlist Manager
     function renderPlaylist() {
       playlistContainer.innerHTML = '';
@@ -295,7 +344,14 @@
         
         div.addEventListener('click', () => {
           loadTrack(index);
-          btnPlay.click();
+          // Auto-play after a short delay to allow loading
+          setTimeout(() => {
+            if (audioCtx && audioCtx.state === 'suspended') {
+              audioCtx.resume().then(() => btnPlay.click());
+            } else {
+              btnPlay.click();
+            }
+          }, 100);
         });
         
         playlistContainer.appendChild(div);
@@ -311,9 +367,11 @@
       audio.pause();
       audio.currentTime = 0;
       synthElapsedTime = 0;
+      mediaSourceConnected = false; // Reset connection for new track
 
       if (track.type !== 'SYNTH') {
         audio.src = track.url;
+        audio.load();
       }
       
       displayTitle.innerText = track.title.toUpperCase();
@@ -335,7 +393,18 @@
         
         renderPlaylist();
         loadTrack(playlist.length - 1);
-        btnPlay.click();
+        
+        // Reset file input
+        localFileInput.value = '';
+        
+        // Auto-play
+        setTimeout(() => {
+          if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume().then(() => btnPlay.click());
+          } else {
+            btnPlay.click();
+          }
+        }, 200);
       }
     });
 
@@ -345,7 +414,10 @@
       let url = trackUrlInput.value.trim();
 
       if (url) {
-        if (url.startsWith('http://')) url = url.replace('http://', 'https://');
+        // Ensure HTTPS for GitHub Pages
+        if (url.startsWith('http://')) {
+          url = url.replace('http://', 'https://');
+        }
         
         playlist.push({
           title: title.toUpperCase(),
@@ -357,6 +429,15 @@
         trackUrlInput.value = '';
         renderPlaylist();
         loadTrack(playlist.length - 1);
+        
+        // Auto-play
+        setTimeout(() => {
+          if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume().then(() => btnPlay.click());
+          } else {
+            btnPlay.click();
+          }
+        }, 200);
       }
     });
 
@@ -369,6 +450,16 @@
         type: "SYNTH"
       });
       renderPlaylist();
+      
+      // Auto-play synth tracks
+      loadTrack(playlist.length - 1);
+      setTimeout(() => {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          audioCtx.resume().then(() => btnPlay.click());
+        } else {
+          btnPlay.click();
+        }
+      }, 200);
     });
 
     // Accent Color Picker Handler
@@ -378,17 +469,24 @@
 
     // Wave Mode Selectors
     document.querySelectorAll('.wave-opt-btn').forEach(btn => {
-      buttonEventListener(btn);
-    });
-
-    function buttonEventListener(button) {
-      button.addEventListener('click', (e) => {
+      btn.addEventListener('click', (e) => {
         document.querySelectorAll('.wave-opt-btn').forEach(b => b.classList.remove('active'));
         e.target.classList.add('active');
         visualizerStyle = e.target.getAttribute('data-style');
       });
-    }
+    });
+
+    // Initialize AudioContext on first user interaction
+    document.addEventListener('click', function initAudioOnInteraction() {
+      initAudioContext();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }, { once: true });
 
     // Boot Up
     renderPlaylist();
     loadTrack(0);
+    
+    console.log('Retro Cassette Deck initialized successfully!');
+    console.log('Playlist loaded with', playlist.length, 'tracks');
