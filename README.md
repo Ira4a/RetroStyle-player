@@ -25,7 +25,7 @@
 1. Fork this repository
 2. Go to Settings > Pages
 3. Select your main branch as the source
-4. Access your live deployment at `ira4a.github.io/RetroStyle-player/`
+4. Access your live deployment at `https://yourusername.github.io/repository-name`
 
 
 **Playing Music**
